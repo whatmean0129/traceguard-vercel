@@ -49,7 +49,7 @@ def probe_algorithm() -> dict:
         "available": not missing,
         "missing": missing,
         "blocker": None if not missing else "缺少依赖: " + ", ".join(missing)
-                    + "（按团队规范未擅自安装；需负责人授权）",
+                    + "（请检查 requirements.txt 是否参与线上构建）",
         "core_hash": core_hash(),
     }
     _CACHED["probe"] = result

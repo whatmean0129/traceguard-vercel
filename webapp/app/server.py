@@ -97,17 +97,26 @@ class Handler(BaseHTTPRequestHandler):
         return self._fail(500, "INTERNAL_ERROR", f"{type(e).__name__}: {e}")
 
     # ------------------------------------------------------------ GET 端点
+    @staticmethod
+    def _runtime_mode(probe):
+        """运行模式取自运行时依赖探测，避免静态描述与实际能力脱节。"""
+        return config.MODE_CORE if probe["available"] else config.MODE_FALLBACK
+
     def _get_index(self, rid):
+        # 这里只列出接口清单；验收/运行状态一律以 /api/v1/health 的动态字段为准，
+        # 不再写入整合阶段的历史静态结论，避免误导为「算法未运行」。
+        probe = core_adapter.probe_algorithm()
         data = {
-            "service": config.SERVICE, "version": config.VERSION, "mode": config.MODE,
+            "service": config.SERVICE, "version": config.VERSION,
+            "mode": self._runtime_mode(probe),
             "ui_url": config.UI_ENTRY,
-            "status_note": "待验收版本；算法依赖未授权安装，embed/extract 算法调用未运行",
+            "status_note": "运行时算法状态请以 /api/v1/health 的 algorithm_available / core_hash_ok 为准",
             "endpoints": [
-                {"method": "GET", "path": "/api/v1/health", "verified": True},
-                {"method": "GET", "path": "/api/v1/info", "verified": True},
-                {"method": "POST", "path": "/api/v1/embed", "verified": "校验链路已验证；算法调用未运行"},
-                {"method": "POST", "path": "/api/v1/extract", "verified": "校验链路已验证；算法调用未运行"},
-                {"method": "GET", "path": "/api/v1/output/<name>", "verified": "404 分支已验证"},
+                {"method": "GET", "path": "/api/v1/health"},
+                {"method": "GET", "path": "/api/v1/info"},
+                {"method": "POST", "path": "/api/v1/embed"},
+                {"method": "POST", "path": "/api/v1/extract"},
+                {"method": "GET", "path": "/api/v1/output/<name>"},
             ],
         }
         self._json(200, http_utils.ok(data, rid))
@@ -121,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
             "python": platform.python_version(),
             "frozen_interpreter": False,
             "interpreter_note": "非冻结解释器（规格环境 Python 3.11.16 本机不存在），如实标注",
-            "mode": config.MODE,
+            "mode": self._runtime_mode(probe),
             "algorithm_available": probe["available"],
             "algorithm_blocker": probe["blocker"],
             "missing_dependencies": probe["missing"],

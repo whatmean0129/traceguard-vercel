@@ -64,5 +64,9 @@ COMPAT_LOW_REPEAT = 8                     # 每 bit 票数低于此值 → 低�
 COMPAT_ALLOWED_QF = (95, 90, 75, 50, 30, 20, 15, 10)
 
 SERVICE = "traceguard-backend"
-VERSION = "0.2.0-compat"
-MODE = "stdlib-only"     # 服务实现仍为纯标准库；算法依赖 cv2/numpy/scipy
+VERSION = "0.3.0-vercel"
+# 运行模式不再写死：由 core_adapter.probe_algorithm() 的运行时探测结果决定。
+# 依赖齐备且冻结核心文件哈希通过 -> dct-core-enabled；依赖缺失 -> stdlib-only。
+# HTTP 层始终使用标准库，算法核心依赖 cv2/numpy/scipy（见 requirements.txt）。
+MODE_CORE = "dct-core-enabled"
+MODE_FALLBACK = "stdlib-only"
