@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # deploy_vercel/
@@ -155,5 +156,16 @@ class VercelHandler(server.Handler):
         return super()._send(status, body, ctype)
 
 
-# Vercel /api/*.py 约定：顶层 handler 必须是 BaseHTTPRequestHandler 子类
-handler = VercelHandler
+# Vercel /api/*.py 约定：顶层 handler 必须是 BaseHTTPRequestHandler 子类。
+#
+# 构建期采用静态分析识别入口：仅写 `handler = VercelHandler` 时，其声明的
+# 基类是 server.Handler，静态分析无法证明它继承 BaseHTTPRequestHandler，
+# 会报 PYTHON_ENTRYPOINT_NOT_FOUND。因此这里定义一个顶层的 handler 类，
+# 把 BaseHTTPRequestHandler 写为显式基类之一，供静态分析识别。
+#
+# MRO: handler -> VercelHandler -> server.Handler -> BaseHTTPRequestHandler
+# 所有 do_GET / do_POST / do_OPTIONS / _send / _adapt 仍由 VercelHandler 提供，
+# 运行行为与原来的 `handler = VercelHandler` 完全一致；不新增、不覆盖任何
+# 业务逻辑，也不改动 413 预检与 /tmp 写盘等安全检查。
+class handler(VercelHandler, BaseHTTPRequestHandler):
+    pass
