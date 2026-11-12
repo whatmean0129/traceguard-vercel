@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TraceGuard · 图片水印嵌入与溯源演示</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#fff; --line:#e4e6eb; --line-2:#eef0f3;
+    --text:#111827; --muted:#6b7280; --muted-2:#9ca3af;
+    --brand:#1d4ed8; --brand-soft:#eef3ff;
+    --ok:#15803d; --ok-soft:#eaf7ee;
+    --bad:#b91c1c; --bad-soft:#fdecec;
+    --warn:#b45309; --warn-soft:#fff6e5;
+    --radius:14px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1240px;margin:0 auto;padding:22px 20px 56px}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+  .brand h1{font-size:21px;letter-spacing:.2px;margin:0 0 4px}
+  .brand p{margin:0;color:var(--muted);font-size:13.5px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:5px 11px;font-size:12.5px;color:var(--muted)
+  }
+  .chip b{color:var(--text);font-weight:600;font-family:var(--mono);font-size:12px}
+
+  /* ---------- layout ---------- */
+  .grid{display:grid;grid-template-columns:minmax(360px,430px) 1fr;gap:18px;align-items:start}
+  @media (max-width:980px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)
+  }
+  .card + .card{margin-top:14px}
+  .card h2{font-size:14px;margin:0 0 12px;letter-spacing:.3px;color:var(--text);display:flex;align-items:center;gap:8px}
+  .card h2 .n{
+    width:19px;height:19px;border-radius:6px;background:var(--brand-soft);color:var(--brand);
+    font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;font-weight:700
+  }
+  .hint{color:var(--muted);font-size:12.5px;margin:0}
+
+  /* ---------- dropzone ---------- */
+  .drop{
+    border:1.5px dashed #cfd4dc;border-radius:12px;background:#fafbfc;
+    padding:22px 16px;text-align:center;cursor:pointer;transition:.18s;position:relative
+  }
+  .drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+  .drop .big{font-size:14px;font-weight:600;margin-bottom:3px}
+  .drop .sub{font-size:12.5px;color:var(--muted)}
+  .drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+  .filebar{display:flex;gap:12px;align-items:center;margin-top:12px}
+  .filebar[hidden]{display:none}
+  .thumb{
+    width:62px;height:62px;border-radius:10px;border:1px solid var(--line);object-fit:cover;background:#f3f4f6;flex:none
+  }
+  .filemeta{min-width:0;font-size:12.5px;color:var(--muted)}
+  .filemeta .name{color:var(--text);font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:290px}
+  .filemeta .row{font-family:var(--mono);font-size:11.5px;color:var(--muted-2);margin-top:2px}
+
+  /* ---------- form ---------- */
+  .field{display:flex;gap:10px;align-items:center;margin-top:14px}
+  .field label{font-size:13px;color:var(--muted);flex:none}
+  input[type=number]{
+    flex:1;padding:8px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;
+    font-family:var(--mono);font-size:13.5px;color:var(--text);background:#fff
+  }
+  input[type=number]:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+
+  .btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+  button{
+    font:inherit;font-size:13.5px;font-weight:600;border-radius:9px;padding:9px 14px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--text);transition:.15s
+  }
+  button:hover:not(:disabled){border-color:#c8ccd4;background:#fafbfc}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.primary:hover:not(:disabled){background:#1a45c0}
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:9px 10px}
+  button.ghost:hover{background:#f1f2f5;color:var(--text)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+
+  /* ---------- alerts ---------- */
+  .alert{border-radius:10px;padding:9px 12px;font-size:12.8px;margin-top:11px;border:1px solid}
+  .alert.err{background:var(--bad-soft);border-color:#f6cdcd;color:#8f1d1d}
+  .alert.warn{background:var(--warn-soft);border-color:#f6e0b8;color:#8a4b06}
+  .alert.info{background:#f2f6ff;border-color:#dce6fb;color:#1e3a8a}
+  .alert b{font-weight:700}
+
+  /* ---------- result ---------- */
+  .imgpair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:620px){.imgpair{grid-template-columns:1fr}}
+  .imgbox{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#f8f9fb}
+  .imgbox .cap{
+    display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:7px 10px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line-2);background:#fff
+  }
+  .imgbox img{display:block;width:100%;height:250px;object-fit:contain;background:#f3f4f6}
+  .imgbox .dl{color:var(--brand);text-decoration:none;font-size:12px;font-weight:600}
+  .imgbox .dl:hover{text-decoration:underline}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  @media (max-width:620px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{border:1px solid var(--line-2);border-radius:10px;padding:9px 11px;background:#fcfcfd}
+  .metric .k{font-size:11.5px;color:var(--muted-2);letter-spacing:.2px}
+  .metric .v{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:2px}
+  .metric .u{font-size:11px;color:var(--muted-2);font-weight:400;margin-left:2px}
+
+  .verdict{
+    margin-top:14px;border-radius:11px;padding:13px 14px;border:1px solid;
+    display:flex;gap:12px;align-items:flex-start
+  }
+  .verdict.ok{background:var(--ok-soft);border-color:#cfe9d7}
+  .verdict.bad{background:var(--bad-soft);border-color:#f6cdcd}
+  .verdict .badge{
+    flex:none;font-size:11.5px;font-weight:700;border-radius:6px;padding:3px 8px;letter-spacing:.4px
+  }
+  .verdict.ok .badge{background:var(--ok);color:#fff}
+  .verdict.bad .badge{background:var(--bad);color:#fff}
+  .verdict .lines{font-size:13px;line-height:1.65}
+  .verdict .lines b{font-family:var(--mono)}
+  .verdict .lines .sub{color:var(--muted);font-size:12.3px;margin-top:3px}
+
+  /* ---------- attack ---------- */
+  .qfs{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+  .qfs button{padding:7px 12px;font-family:var(--mono);font-size:12.5px}
+  .qfs button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .empty{
+    border:1px dashed var(--line);border-radius:11px;padding:34px 18px;text-align:center;
+    color:var(--muted-2);font-size:13px;background:#fcfcfd
+  }
+
+  /* ---------- limits ---------- */
+  .limits{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px;margin:0;padding:0;list-style:none}
+  @media (max-width:720px){.limits{grid-template-columns:1fr}}
+  .limits li{font-size:12.8px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+  .limits li .dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--muted-2);margin-top:8px}
+  .limits li b{color:var(--text)}
+
+  footer{margin-top:22px;color:var(--muted-2);font-size:12px;line-height:1.7;border-top:1px solid var(--line);padding-top:14px}
+  code{font-family:var(--mono);font-size:12px;background:#f1f2f5;padding:1px 5px;border-radius:5px;color:#374151}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.45);
+    border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>TraceGuard · 图片隐形水印与溯源演示</h1>
+      <p>把身份编号隐形嵌入图片 → 图片被转发、压缩后仍能盲提取编号，用于外泄溯源</p>
+    </div>
+    <div class="chips">
+      <span class="chip">算法<b>A 组 · 固定基线</b></span>
+      <span class="chip">strength<b>16</b></span>
+      <span class="chip">margin<b>8</b></span>
+      <span class="chip">载荷<b>32 bit</b></span>
+      <span class="chip">编号范围<b>0–65535</b></span>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- ============ 左：操作 ============ -->
+    <div>
+      <div class="card">
+        <h2><span class="n">1</span>上传图片</h2>
+        <div class="drop" id="drop">
+          <div class="big">拖拽图片到这里，或点击选择</div>
+          <div class="sub">支持 JPG / PNG / BMP / WebP / TIFF，单张 ≤ 40 MB</div>
+          <input type="file" id="file" accept="image/*" />
+        </div>
+        <div class="filebar" id="filebar" hidden>
+          <img class="thumb" id="thumb" alt="预览" />
+          <div class="filemeta">
+            <div class="name" id="fname">—</div>
+            <div class="row" id="fmeta">—</div>
+          </div>
+        </div>
+        <div id="alerts"></div>
+      </div>
+
+      <div class="card">
+        <h2><span class="n">2</span>嵌入编号</h2>
+        <div class="field">
+          <label for="code">编号</label>
+          <input type="number" id="code" min="0" max="65535" step="1" value="20261" />
+        </div>
+        <p class="hint">16 bit 载荷，取值 0–65535。演示默认 20261。</p>
+        <div class="btns">
+          <button class="primary" id="btnEmbed" disabled>嵌入水印</button>
+          <button id="btnExtract" disabled>从当前图片提取</button>
+          <button class="ghost" id="btnReset">重置</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="n">3</span>JPEG 压缩攻击</h2>
+        <p class="hint">真实重新编码一次，不是模拟。用来演示水印在转发压缩后的存活情况。</p>
+        <div class="qfs" id="qfs" style="margin-top:10px">
+          <button data-qf="95">QF95</button>
+          <button data-qf="75">QF75</button>
+          <button data-qf="50" class="on">QF50</button>
+          <button data-qf="30">QF30</button>
+          <button data-qf="20">QF20</button>
+          <button data-qf="10">QF10</button>
+        </div>
+        <div class="btns">
+          <button class="primary" id="btnAttack" disabled>压缩后再提取</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="n">i</span>这个系统的能力边界</h2>
+        <ul class="limits">
+          <li><span class="dot"></span><span><b>只扛 JPEG 有损压缩。</b>真实照片在 QF30→QF20 之间崩塌。</span></li>
+          <li><span class="dot"></span><span><b>不抗几何攻击。</b>裁剪/缩放/旋转会破坏 8×8 块对齐，未验证。</span></li>
+          <li><span class="dot"></span><span><b>不做来源认证。</b>CRC 只校验比特流自洽，不能证明图片是谁发的。</span></li>
+          <li><span class="dot"></span><span><b>不做篡改检测。</b>只能回答"这张图带的是哪个编号"。</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============ 右：结果 ============ -->
+    <div>
+      <div class="card">
+        <h2><span class="n">4</span>对比与指标</h2>
+        <div id="pair" class="empty">还没有结果。先上传一张图片，然后点「嵌入水印」。</div>
+        <div id="metrics"></div>
+        <div id="verdict"></div>
+      </div>
+
+      <div class="card">
+        <h2><span class="n">5</span>提取结果</h2>
+        <div id="extractBox" class="empty">尚未执行提取。可用「从当前图片提取」验证水印是否可还原。</div>
+      </div>
+
+      <div class="card">
+        <h2><span class="n">6</span>压缩攻击结果</h2>
+        <div id="attackBox" class="empty">选择质量档位后点「压缩后再提取」。</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    演示口径：<code>success = magic_ok ∧ crc_ok ∧ 编号一致</code>；PSNR/SSIM 为嵌入失真（原图 vs 含水印图），不是攻击后画质。
+    嵌入结果以 <b>PNG</b> 返回（无损）；若存成 JPEG 会二次压缩，水印可能当场就被削弱，演示结果将不可信。
+    所有数值来自本次实际运行，不使用历史落盘数据。
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const S = { file: null, dataURL: null, wmB64: null, lastCode: null, qf: 50, current: null, meta: null };
+
+  const setBusy = (btn, busy, text) => {
+    if (!btn) return;
+    btn.disabled = busy;
+    if (busy) { btn.dataset.t = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + (text || '处理中'); }
+    else { btn.textContent = btn.dataset.t || btn.textContent; }
+  };
+
+  const alertBox = (kind, html) => {
+    const d = document.createElement('div');
+    d.className = 'alert ' + kind;
+    d.innerHTML = html;
+    $('alerts').appendChild(d);
+  };
+  const clearAlerts = () => { $('alerts').innerHTML = ''; };
+
+  const fmt = (v, n = 2) => (v === null || v === undefined) ? '—' : Number(v).toFixed(n);
+
+  async function post(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  }
+
+  function showPair(origSrc, wmSrc, code) {
+    $('pair').className = 'imgpair';
+    $('pair').innerHTML = `
+      <div class="imgbox">
+        <div class="cap"><span>原图</span></div>
+        <img src="${origSrc}" alt="原图" />
+      </div>
+      <div class="imgbox">
+        <div class="cap"><span>含水印图（PNG 无损）</span>
+          <a class="dl" download="watermarked_${code}.png" href="${wmSrc}">下载</a></div>
+        <img src="${wmSrc}" alt="含水印图" />
+      </div>`;
+  }
+
+  function showMetrics(d) {
+    const items = [
+      ['PSNR', fmt(d.psnr_db, 2), 'dB'],
+      ['SSIM', fmt(d.ssim, 4), ''],
+      ['嵌入耗时', d.elapsed_ms ?? '—', 'ms'],
+      ['未收敛块', d.failed_blocks ?? '—', '']
+    ];
+    $('metrics').className = 'metrics';
+    $('metrics').innerHTML = items.map(([k, v, u]) =>
+      `<div class="metric"><div class="k">${k}</div><div class="v">${v}<span class="u">${u}</span></div></div>`
+    ).join('');
+  }
+
+  function showVerdict(d) {
+    if (!d.roundtrip) { $('verdict').innerHTML = ''; return; }
+    const ok = d.roundtrip_ok;
+    const r = d.roundtrip;
+    $('verdict').className = 'verdict ' + (ok ? 'ok' : 'bad');
+    $('verdict').innerHTML = `
+      <span class="badge">${ok ? '嵌入成功' : '嵌入异常'}</span>
+      <div class="lines">
+        立即回读提取编号 <b>${r.code}</b>，期望 <b>${d.code}</b>；同步头 ${r.magic_ok ? '✓' : '✗'}、
+        CRC ${r.crc_ok ? '✓' : '✗'}，投票一致率 <b>${fmt(r.vote_agreement, 4)}</b>。
+        <div class="sub">这张图共有 ${d.n_blocks} 个 8×8 块，每个 bit 平均重复 ${d.repeats} 次——冗余是抗压缩的底气。</div>
+      </div>`;
+  }
+
+  function extractCard(r, extra = '') {
+    const ok = r.valid;
+    return `
+      <div class="verdict ${ok ? 'ok' : 'bad'}">
+        <span class="badge">${ok ? '有效水印' : '无效'}</span>
+        <div class="lines">
+          提取编号 <b>${ok ? r.code : '—'}</b>
+          <div class="sub">
+            同步头 ${r.magic_ok ? '✓' : '✗'} · CRC ${r.crc_ok ? '✓' : '✗'} ·
+            投票一致率 ${fmt(r.vote_agreement, 4)} · 最弱比特 ${fmt(r.min_agreement, 3)} ·
+            块数 ${r.n_blocks} · 耗时 ${r.elapsed_ms} ms ${extra}
+          </div>
+          ${ok ? '' : '<div class="sub">没读到同步头或 CRC 不通过，说明这张图要么没嵌过水印，要么已被压坏到无法还原。系统不会硬凑一个编号出来。</div>'}
+        </div>
+      </div>`;
+  }
+
+  // ---------- 上传 ----------
+  $('file').addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+  $('drop').addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+  async function loadFile(file) {
+    clearAlerts();
+    S.file = file; S.wmB64 = null; S.current = null; S.lastCode = null;
+    $('extractBox').className = 'empty';
+    $('extractBox').textContent = '尚未执行提取。可用「从当前图片提取」验证水印是否可还原。';
+    $('attackBox').className = 'empty';
+    $('attackBox').textContent = '选择质量档位后点「压缩后再提取」。';
+    $('metrics').innerHTML = '';
+    $('verdict').innerHTML = '';
+
+    S.dataURL = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.readAsDataURL(file);
+    });
+
+    $('filebar').hidden = false;
+    $('thumb').src = S.dataURL;
+    $('fname').textContent = file.name;
+    $('fmeta').textContent = `${(file.size / 1024).toFixed(0)} KB · 解析中…`;
+
+    setBusy($('btnEmbed'), true, '解析中');
+    const res = await post('/api/analyze', { image: S.dataURL, filename: file.name });
+    setBusy($('btnEmbed'), false);
+
+    if (!res.ok) {
+      $('fmeta').textContent = '无法解析';
+      alertBox('err', `<b>${res.error}</b>${res.hint ? '<br>' + res.hint : ''}`);
+      $('btnEmbed').disabled = true; $('btnExtract').disabled = true; $('btnAttack').disabled = true;
+      return;
+    }
+
+    const m = res.data.meta;
+    S.meta = m;
+    $('fmeta').textContent = `${m.width}×${m.height} · ${m.channels === 4 ? 'RGBA' : m.channels === 1 ? '灰度' : 'BGR'} · ${m.blocks} 块 · ${m.repeats} 次/bit`;
+
+    (res.data.warnings || []).forEach(w => alertBox('warn', w));
+
+    const p = res.data.probe;
+    if (p.valid) {
+      alertBox('info', `初步探测：这张图<b>已带水印</b>，编号 <b>${p.code}</b>。可以直接点「从当前图片提取」复现。`);
+    } else {
+      alertBox('info', `初步探测：这张图<b>没有检测到有效水印</b>（同步头 ${p.magic_ok ? '✓' : '✗'} / CRC ${p.crc_ok ? '✓' : '✗'}）。这是正确行为——没嵌过的图不会被硬凑出一个编号。`);
+    }
+
+    $('btnEmbed').disabled = false;
+    $('btnExtract').disabled = false;
+    $('btnAttack').disabled = false;
+    S.current = S.dataURL;
+  }
+
+  // ---------- 嵌入 ----------
+  $('btnEmbed').addEventListener('click', async () => {
+    if (!S.dataURL) return;
+    const code = parseInt($('code').value, 10);
+    if (!Number.isInteger(code) || code < 0 || code > 65535) {
+      clearAlerts(); alertBox('err', '<b>编号必须是 0~65535 的整数</b><br>16 bit 载荷只能表示 65536 个编号。');
+      return;
+    }
+    clearAlerts();
+    setBusy($('btnEmbed'), true, '嵌入中');
+    const res = await post('/api/embed', { image: S.dataURL, code, filename: S.file?.name || '' });
+    setBusy($('btnEmbed'), false);
+
+    if (!res.ok) { alertBox('err', `<b>${res.error}</b>${res.hint ? '<br>' + res.hint : ''}`); return; }
+
+    const d = res.data;
+    S.wmB64 = 'data:image/png;base64,' + d.watermarked;
+    S.lastCode = d.code;
+    S.current = S.wmB64;
+    (d.warnings || []).forEach(w => alertBox('warn', w));
+    showPair(S.dataURL, S.wmB64, d.code);
+    showMetrics(d);
+    showVerdict(d);
+    $('extractBox').className = 'empty';
+    $('extractBox').innerHTML = `水印已写入。点「从当前图片提取」或先做一次 JPEG 压缩攻击，再提取。`;
+  });
+
+  // ---------- 提取 ----------
+  $('btnExtract').addEventListener('click', async () => {
+    if (!S.current) return;
+    clearAlerts();
+    setBusy($('btnExtract'), true, '提取中');
+    const res = await post('/api/extract', { image: S.current, expect_code: S.lastCode, filename: S.file?.name || '' });
+    setBusy($('btnExtract'), false);
+    if (!res.ok) { alertBox('err', `<b>${res.error}</b>`); return; }
+    const r = res.data.extract;
+    $('extractBox').className = '';
+    $('extractBox').innerHTML = extractCard(r);
+    if (S.lastCode !== null && r.valid) {
+      const match = r.code === S.lastCode;
+      alertBox(match ? 'info' : 'warn', match
+        ? `提取编号与嵌入编号一致（<b>${r.code}</b>）。`
+        : `提取到 <b>${r.code}</b>，但嵌入的是 <b>${S.lastCode}</b>，请检查是否换了图。`);
+    }
+  });
+
+  // ---------- 攻击 ----------
+  $('qfs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-qf]');
+    if (!b) return;
+    [...$('qfs').children].forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    S.qf = parseInt(b.dataset.qf, 10);
+  });
+
+  $('btnAttack').addEventListener('click', async () => {
+    if (!S.wmB64) { clearAlerts(); alertBox('warn', '请先嵌入水印，再对含水印图做压缩攻击。'); return; }
+    clearAlerts();
+    setBusy($('btnAttack'), true, '压缩中');
+    const res = await post('/api/attack', { image: S.wmB64, qf: S.qf, filename: S.file?.name || '' });
+    setBusy($('btnAttack'), false);
+    if (!res.ok) { alertBox('err', `<b>${res.error}</b>`); return; }
+    const d = res.data;
+    const attSrc = 'data:image/jpeg;base64,' + d.attacked;
+    $('attackBox').className = '';
+    $('attackBox').innerHTML = `
+      <div class="imgpair" style="grid-template-columns:1fr">
+        <div class="imgbox">
+          <div class="cap"><span>攻击后图像 · JPEG QF${d.qf}（已真实重新编码）</span>
+            <a class="dl" download="attacked_qf${d.qf}.jpg" href="${attSrc}">下载</a></div>
+          <img src="${attSrc}" alt="攻击图" style="height:220px" />
+        </div>
+      </div>
+      <div style="margin-top:12px">${extractCard(d.extract, `· 压缩耗时 ${d.elapsed_ms} ms`)}</div>`;
+  });
+
+  // ---------- 重置 ----------
+  $('btnReset').addEventListener('click', () => {
+    S.file = null; S.dataURL = null; S.wmB64 = null; S.current = null; S.lastCode = null; S.meta = null;
+    $('file').value = '';
+    $('filebar').hidden = true;
+    clearAlerts();
+    $('pair').className = 'empty'; $('pair').textContent = '还没有结果。先上传一张图片，然后点「嵌入水印」。';
+    $('metrics').innerHTML = ''; $('verdict').innerHTML = '';
+    $('extractBox').className = 'empty'; $('extractBox').textContent = '尚未执行提取。可用「从当前图片提取」验证水印是否可还原。';
+    $('attackBox').className = 'empty'; $('attackBox').textContent = '选择质量档位后点「压缩后再提取」。';
+    $('btnEmbed').disabled = true; $('btnExtract').disabled = true; $('btnAttack').disabled = true;
+  });
+})();
+</script>
+</body>
+</html>

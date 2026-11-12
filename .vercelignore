@@ -1,0 +1,37 @@
+# 仅打包最小运行集。以下为防御性排除：
+# 正常情况下 deploy_vercel/ 内本就不含实验数据、历史报告、真实图片或密钥；
+# 若 Vercel 的 Root Directory 被误设为项目根，这些规则可兜底。
+team/
+data/
+docs/
+phase1_backup/
+__pycache__/
+*.pyc
+*.csv
+*.png
+*.jpg
+*.jpeg
+*.zip
+*.log
+*.jsonl
+results.json
+phase2_results.csv
+phase2_results.json
+phase2_summary.png
+phase3_results.csv
+phase3_results.json
+phase3_summary.png
+webapp/docs/
+webapp/logs/
+webapp/output/
+webapp/uploads/
+webapp/evidence/
+webapp/README.md
+webapp/requirements.txt
+webapp/run_server.py
+README.md
+.venv/
+.env
+.env.*
+*.key
+*.pem

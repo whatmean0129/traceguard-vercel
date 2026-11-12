@@ -1,0 +1,8 @@
+# Vercel Hobby / Python 3.12 / Linux x86_64 运行依赖
+# 版本与主项目整合版 webapp/requirements.txt 完全一致；
+# opencv-python-headless 为无 GUI 依赖的 Linux 兼容构建（不需要 libGL）。
+# 注意：Python 3.12 下 cv2 的 DCT 浮点结果是否与本地 3.11 实验逐位一致尚未验证，
+#       公网数值一律标注为演示环境，不作为 Phase1-3 实验结论。
+numpy==2.4.6
+opencv-python-headless==5.0.0.93
+scipy==1.17.1
